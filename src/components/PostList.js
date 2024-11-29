@@ -1,64 +1,108 @@
-import React, { useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { addPost } from "../redux/slices/formSlice";
+import React, { useState, useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import {fetchPosts, deletePostFromAPI, updatePostToAPI, editPost} from "../redux/slices/formSlice";
 
-const PostForm = () => {
+const PostList = () => {
     const dispatch = useDispatch();
+    const { posts, status, error } = useSelector((state) => state.form);
 
-    const [title, setTitle] = useState("");
-    const [body, setBody] = useState("");
-    const [userId] = useState(1); // Static userId, could be dynamic
+    const [editMode, setEditMode] = useState(false);
+    const [currentPost, setCurrentPost] = useState(null);
 
-    // Get status and error from Redux store to show loading/error states
-    const { status, error } = useSelector((state) => state.form);
+    useEffect(() => {
+        if (status === "idle") {
+            dispatch(fetchPosts());
+        }
+    }, [dispatch, status]);
 
-    // Handle form submit to add post
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const handleDelete = (id) => {
 
-        const newPost = {
-            title,
-            body,
-            userId,
-        };
+        dispatch(deletePostFromAPI(id))
+            .then(() => {
+                alert("Post Deleted successfully!");
+            })
+            .catch((error) => {
+                console.error("Failed to delete the post:", error);
+                alert("Failed to delete the post.");
+            });
 
-        // Dispatch the addPost action to send the POST request
-        dispatch(addPost(newPost));
-
-        // Reset form fields after submission
-        setTitle("");
-        setBody("");
     };
+
+    const handleEdit = (post) => {
+        setEditMode(true);
+        setCurrentPost(post);
+    };
+
+    const handleSaveEdit = () => {
+        if (currentPost) {
+            dispatch(updatePostToAPI(currentPost))
+                .then(() => {
+                    alert("Post Edited successfully!");
+                })
+                .catch((error) => {
+                    console.error("Failed to edit the post:", error);
+                    alert("Failed to edit the post.");
+                });
+
+            dispatch(editPost(currentPost)); // Update the post in the Redux state locally
+            setEditMode(false);
+            setCurrentPost(null);
+        }
+    };
+
+    const handleChange = (e) => {
+        setCurrentPost({ ...currentPost, [e.target.name]: e.target.value });
+    };
+
+    if (status === "loading") {
+        return <div>Loading posts...</div>;
+    }
+
+    if (status === "failed") {
+        return <div>Error: {error}</div>;
+    }
 
     return (
         <div>
-            <h2>Add a New Post</h2>
-            <form onSubmit={handleSubmit}>
-                <div>
-                    <label>Title:</label>
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        required
-                    />
-                </div>
-                <div>
-                    <label>Body:</label>
-                    <textarea
-                        value={body}
-                        onChange={(e) => setBody(e.target.value)}
-                        required
-                    />
-                </div>
-                <button type="submit" disabled={status === "loading"}>
-                    {status === "loading" ? "Adding..." : "Add Post"}
-                </button>
-            </form>
-
-            {status === "failed" && <p>Error: {error}</p>}
+            <h2>Posts</h2>
+            {posts.length === 0 ? (
+                <p>No posts available.</p>
+            ) : (
+                <ul>
+                    {posts.map((post) => (
+                        <li key={post.id}>
+                            {editMode && currentPost.id === post.id ? (
+                                <div>
+                                    <input
+                                        type="text"
+                                        name="title"
+                                        value={currentPost.title}
+                                        onChange={handleChange}
+                                    />
+                                    <textarea
+                                        name="body"
+                                        value={currentPost.body}
+                                        onChange={handleChange}
+                                    />
+                                    <button onClick={handleSaveEdit}>Save</button>
+                                    <button onClick={() => setEditMode(false)}>Cancel</button>
+                                </div>
+                            ) : (
+                                <div>
+                                    <strong>{post.title}</strong>
+                                    <p>{post.body}</p>
+                                    <small>User ID: {post.userId}</small>
+                                    <br />
+                                    <button onClick={() => handleEdit(post)}>Edit</button>
+                                    <button onClick={() => handleDelete(post.id)}>Delete</button>
+                                </div>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 };
 
-export default PostForm;
+export default PostList;
